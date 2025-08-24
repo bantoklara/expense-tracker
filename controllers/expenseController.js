@@ -1,37 +1,25 @@
-import firebase from "../firebase.js";
+import admin from '../firebase.js'; 
 import Expense from "../models/ExpenseModel.js";
 
-import {
-    getFirestore,
-    collection,
-    doc,
-    addDoc,
-    getDoc,
-    getDocs,
-    updateDoc,
-    deleteDoc,
-    query,
-    orderBy,
-    startAfter,
-    limit,
-    Timestamp,
-    and,
-    where
-} from 'firebase/firestore';
-
-const db = getFirestore(firebase);
+const db = admin.firestore(); 
 
 export const createExpense = async (req, res, _next) => {
     try {
         const data = req.body;
         data.date = data.date ? new Date(data.date) : new Date();
 
-        const docRef = await addDoc(collection(db, 'expenses'), data);
-        const doc = await getDoc(docRef);
-        res.status(200).send(new Expense(doc.id, doc.data().amount, doc.data().category, doc.data().date));
+        const docRef = await db.collection('expenses').add(data);
+        const docSnap = await docRef.get();
+
+        res.status(200).send(new Expense(
+            docSnap.id,
+            docSnap.data().amount,
+            docSnap.data().category,
+            docSnap.data().date
+        ));
     } catch (error) {
         res.status(400).send(error.message);
-    };
+    }
 };
 
 export const getExpenses = async (req, res, _next) => {
@@ -40,22 +28,19 @@ export const getExpenses = async (req, res, _next) => {
         let lastDate = req.query.lastDate ? JSON.parse(req.query.lastDate) : null;
         let lastId = req.query.lastId ? req.query.lastId : null;
 
-        let qry = query(
-            collection(db, 'expenses'),
-            orderBy('date', 'desc'),
-            orderBy('__name__'),
-            limit(dataLimit + 1));
+        let qry = db.collection('expenses')
+            .orderBy('date', 'desc')
+            .orderBy('__name__')
+            .limit(dataLimit + 1);
+
         if (lastDate && lastId) {
-            lastDate = new Timestamp(lastDate.seconds, lastDate.nanoseconds)
-            qry = query(
-                collection(db, 'expenses'),
-                orderBy('date', 'desc'),
-                orderBy("__name__"),
-                startAfter(lastDate, lastId),
-                limit(dataLimit + 1));
+            lastDate = new admin.firestore.Timestamp(lastDate._seconds, lastDate._nanoseconds);
+            const lastDocRef = db.collection('expenses').doc(lastId);
+            const lastDocSnap = await lastDocRef.get();
+            qry = qry.startAfter(lastDocSnap);
         }
 
-        const snapshot = await getDocs(qry);
+        const snapshot = await qry.get();
         const hasMore = snapshot.size > dataLimit;
         const expenses = [];
 
@@ -84,82 +69,54 @@ export const getExpenses = async (req, res, _next) => {
 export const getRecentExpenses = async (req, res) => {
     const year = new Date().getFullYear();
     const month = new Date().getMonth() + 1;
-    const startDate = new Date(year, month - 1, 1, 0, 0, 0);
-    const endDate = new Date(year, month, 1, 0, 0, 0);
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 1);
 
-    const expenseRef = collection(db, 'expenses');
-    const qry = query(expenseRef, and(
-        where('date', '>=', startDate),
-        where('date', '<', endDate)
-    ))
-
-    const snapshot = await getDocs(qry);
+    const snapshot = await db.collection('expenses')
+        .where('date', '>=', startDate)
+        .where('date', '<', endDate)
+        .get();
 
     res.send(snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
     })));
-}
+};
 
 export const updateExpense = async (req, res, next) => {
     try {
         const id = req.params.id;
         const data = req.body;
-        const expenseRef = doc(db, 'expenses', id);
-
         data.date = data.date ? new Date(data.date) : new Date();
 
-        await updateDoc(expenseRef, data);
-        const updated = await getDoc(expenseRef);
+        const expenseRef = db.collection('expenses').doc(id);
+        await expenseRef.update(data);
 
-        res.status(200).send(new Expense(updated.id, updated.data().amount, updated.data().category, updated.data().date));
+        const updatedDoc = await expenseRef.get();
+        res.status(200).send(new Expense(
+            updatedDoc.id,
+            updatedDoc.data().amount,
+            updatedDoc.data().category,
+            updatedDoc.data().date
+        ));
     } catch (error) {
         res.status(400).send(error.message);
     }
-}
+};
 
-function getRandomCategory(categories) {
-    const index = Math.floor(Math.random() * categories.length);
-    return categories[index];
-}
-
-export const updateAllExpenses = async (req, res) => {
-    const categories = ["Housing",
-        "Transportation",
-        "Food",
-        "Utilities",
-        "Clothing",
-        "Medical/Healthcare",
-        "Insurance",
-        "Household Items/Supplies",
-        "Personal",
-        "Debt",
-        "Education",
-        "Savings",
-        "Gifts/Donations",
-        "Entartainment"];
-
-    const expensesRef = collection(db, 'expenses');
-    const snapshot = await getDocs(expensesRef);
-    snapshot.forEach(async (doc, ind) => {
-
-        await updateDoc(doc.ref, { "category": getRandomCategory(categories) });
-    })
-    res.send("Ok");
-}
 export const deleteExpense = async (req, res, next) => {
     try {
         const id = req.params.id;
-        const docRef = doc(db, 'expenses', id);
-        const expense = await getDoc(docRef);
+        const expenseRef = db.collection('expenses').doc(id);
+        const expense = await expenseRef.get();
 
-        if (!expense.exists()) {
+        if (!expense.exists) {
             res.status(404).send('Expense not found');
         } else {
-            await deleteDoc(docRef);
+            await expenseRef.delete();
             res.status(204).send('Expense deleted successfully');
         }
     } catch (error) {
         res.status(400).send(error.message);
     }
-}
+};

@@ -5,7 +5,6 @@ import {
     deleteExpense,
     getExpenses,
     getRecentExpenses,
-    updateAllExpenses,
     updateExpense
 } from '../controllers/expenseController.js';
 
@@ -16,5 +15,4 @@ router.get('/expenses/dashboard', getRecentExpenses);
 router.post('/expenses', createExpense);
 router.put('/expenses/:id', updateExpense);
 router.delete('/expenses/:id', deleteExpense);
-router.put('/all', updateAllExpenses);
 export default router;
