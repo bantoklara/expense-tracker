@@ -26,5 +26,6 @@ export default {
         storageBucket: STORAGE_BUCKET,
         messagingSenderId: MESSAGING_SENDER_ID,
         appId: APP_ID,
+        databaseURL: `https://${PROJECT_ID}.firebaseio.com`
     },
 };
