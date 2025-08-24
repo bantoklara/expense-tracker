@@ -19,6 +19,9 @@ assert(PORT, 'Port is required');
 assert(HOST, 'Host is required');
 
 export default {
+    port: 8080,
+    host: "localhost",
+    hostUrl: "http://localhost:8080",
     firebaseConfig: {
         apiKey: API_KEY,
         authDomain: AUTH_DOMAIN,
